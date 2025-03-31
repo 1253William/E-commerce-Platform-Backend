@@ -147,3 +147,64 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         return
     }
 }
+
+
+// @route POST /api/auth/logout 
+// @description Logout User (Clear refresh token)
+// @access Public
+export const logout = async (req: Request, res: Response): Promise<void> => {
+    try {
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: "strict" });
+        res.status(200).json({success:true, message: "User logged out successfully"})
+        
+    } catch (error) {
+        console.error({ message: "Error logging out user", error: error });
+        res.status(500).json({ success: false, error: "Internal Server Error" });
+    }
+}
+
+
+// @route POST /api/auth/refresh-token
+// @description Generate access token using refresh token 
+// @access Public
+export const refreshToken = async (req: Request, res: Response): Promise<void> => { 
+    try {
+        const token = req.cookies.refreshToken;
+        if (!token) {
+            res.status(401).json({
+                success: false,
+                message: "Unauthorized: No refresh token"
+            });
+            return
+        }
+        
+        // Verify the refresh token
+        jwt.verify(token, process.env.REFRESH_TOKEN_SECRET as string, (err: any, decoded: any) => {
+            if (err) {
+                res.clearCookie('refreshToken');
+                res.status(403).json({ success: false, message: "Session expired, please log in again" });
+                return;
+            }
+            
+            console.log(decoded);
+            // Generate a new access token
+            const newAccessToken = jwt.sign(
+                { email: decoded.email },
+                process.env.ACCESS_TOKEN_SECRET as string,
+                { expiresIn: "15m" }
+            );
+
+            console.log(newAccessToken)
+
+            res.status(200).json({
+                success: true,
+                accessToken: newAccessToken,
+            });
+        });
+
+    } catch (error: unknown) {
+        console.log({ message: "Error generating access token", error: error });
+        res.status(500).json({ success: false, error: "Internal Server Error" });
+        return
+    }
+}

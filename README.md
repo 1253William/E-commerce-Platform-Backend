@@ -9,7 +9,7 @@ A comprehensive e-commerce platform backend that caters for users being able to 
 **Sign Up User (Create User and Hashed Password)
 **Login User (JWT authentication with refresh and access token // RBAC token for User and Admin roles)
 **Authenticate User (Authentication Middleware)
-**User Profile (Fetch , Update, & Delete  data // User address for billing information and payment details) 
+**User Profile (Fetch , Update, & Delete personal  data // User address for billing information and payment details) 
 
 
 -Product Management(Resource: Products)
