@@ -1,0 +1,27 @@
+{
+    "dbUsers": [
+   {
+      "email": "williamofosuparwar@gmail.com",
+     "password": "OfosuP124@@@!!"
+    },
+      {
+        "email": "williamofosu677@gmail.com",
+        "password": "OfosuP124@@@!!"
+      },
+      {
+        "email": "johnnysmith@gmail.com",
+        "password": "Password1239010@"
+      },
+      {
+        "email": "janedoe@gmail.com",
+        "password": "passworD@12346"
+      },
+      { 
+         "firstName": "Admininstrator",
+         "lastName": "Super",
+          "email": "admin@example.com",
+          "password": "123456122211",
+           "role": "Admin"
+    }
+]
+}
