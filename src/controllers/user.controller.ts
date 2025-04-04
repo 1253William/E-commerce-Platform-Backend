@@ -1,4 +1,4 @@
-import {Request, Response} from 'express';
+import {json, Request, Response} from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import supabase from '../config/db'
@@ -22,11 +22,11 @@ export const getUserProfile = async (req: AuthRequest, res: Response): Promise<v
             return;
         }
 
-        const userEmail = req.user.email
+       const userEmail = req.user.email
         //Fetch User Profile
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, email, first_name, last_name, role, is_verified')
+            .select('id, email, first_name, last_name, role, is_verified, is_account_deleted')
             .eq('email', userEmail)
             .single();
         if (error) {
@@ -46,10 +46,18 @@ export const getUserProfile = async (req: AuthRequest, res: Response): Promise<v
             return
         }
 
+        if (user.is_account_deleted) {
+            res.status(404).json({
+                success: false,
+                message: "Account has been deleted, please sign up again."
+            });
+            return;
+         }       
+       
         res.status(200).json({
             success: true,
             message: "User profile fetched successfully",
-            data: user
+             data: user
         });
 
     } catch (error) {
@@ -131,6 +139,59 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
 // @description Delete User Profile (Soft Delete)
 // @access Private
 export const deleteUserProfile = async (req: AuthRequest, res: Response): Promise<void> => { 
+    try {
+        if (!req.user) {
+            res.status(401).json({
+                success: false,
+                message: "Unauthorized: User not authenticated"
+            });
+            return;
+        }
+
+        const userEmail = req.user.email;
+
+        //Soft Delete User Profile
+         const { data: deletedUser, error } = await supabase
+            .from('users')
+            .update({
+                is_account_deleted: true,
+                deleted_at: new Date().toISOString(),
+            })
+             .eq('email', userEmail)
+             .select('id, email, first_name, last_name, deleted_at, is_account_deleted')
+             .single();
+        
+        if (error) {
+            console.error("Supabase Query Error (Error deleting user): ", error)
+            res.status(400).json({
+                success: false,
+                message: "Database Error: Error deleting user",
+                error: error.message
+            });
+            return;
+        }
+
+        if (!deletedUser) {
+            res.status(404).json({
+                success: false,
+                message: "User not found or already deleted",
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "User profile deleted successfully",
+            data: deletedUser
+        });
+        
+    } catch (error) {
+        console.error("Error deleting user profile", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error: Unable to delete user profile"
+        });
+    }
 
 }
 

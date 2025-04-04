@@ -22,24 +22,57 @@ export const signup = async ( req: Request, res: Response): Promise<void> => {
         //Check for existing user
         const { data: existingUser, error: userError } = await supabase
             .from('users')
-            .select('email')
+            .select('id, email, is_account_deleted')
             .eq('email', email)
             .maybeSingle();
         if (userError) { 
              console.error("Supabase Query Error (Checking User):", userError);
             res.status(400).json({
                 success: false,
-                message: "Database Error: Error in checking user",
+                message: "Database Error: Error in signin up user",
                 error: userError.message, 
             });
             return
         }
-        if (existingUser) {
+
+          if (existingUser) {
+            if (existingUser.is_account_deleted) {
+                // Restore soft-deleted user
+                const { error: restoreError } = await supabase
+                    .from('users')
+                    .update({
+                        is_account_deleted: false,
+                        deleted_at: null,
+                        password: await bcrypt.hash(password, 10), // Update password
+                        first_name: firstName,
+                        last_name: lastName,
+                        role: role || 'User',
+                        is_verified: isVerified ?? false
+                    })
+                    .eq('id', existingUser.id);
+
+                if (restoreError) {
+                    console.error("Supabase Query Error (Restoring User):", restoreError);
+                    res.status(400).json({
+                        success: false,
+                        message: "Database Error: Error restoring user",
+                        error: restoreError.message
+                    });
+                    return;
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: "User account restored successfully"
+                });
+                return;
+            }
+
             res.status(400).json({
                 success: false,
                 message: "User already exists"
             });
-            return
+            return;
         }
         
         //Hash Password
@@ -55,7 +88,9 @@ export const signup = async ( req: Request, res: Response): Promise<void> => {
                 last_name: lastName,
                 password: hashedPassword,
                 role: role || 'User',
-                is_verified: isVerified ?? false
+                is_verified: isVerified ?? false,
+                is_account_deleted: false,
+                deleted_at: null
             }])
         if (error) {
              res.status(400).json({
@@ -109,6 +144,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
             });
             return
         }
+
         if (!existingUser) {
             res.status(400).json({
                 success: false,
@@ -116,6 +152,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
             });
             return
         }
+
+        if (existingUser.is_account_deleted) {
+            res.status(404).json({
+                success: false,
+                message: "Account has been deleted, please sign up again."
+            });
+            return;
+         }  
 
         //Check Password
         const validPassword = await bcrypt.compare(password, existingUser.password);
@@ -128,7 +172,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         }
 
         //Create JWT Token
-        const accessToken = jwt.sign({ userId: existingUser.id, email: existingUser.email }, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '15m' });
+        const accessToken = jwt.sign({ userId: existingUser.id, email: existingUser.email, role: existingUser.role }, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '15m' });
         const refreshToken = jwt.sign({ email: existingUser.email }, process.env.REFRESH_TOKEN_SECRET as string, { expiresIn: '7d' });
         
         //Use Refresh Token
@@ -177,6 +221,8 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
             });
             return
         }
+
+        
         
         // Verify the refresh token
         jwt.verify(token, process.env.REFRESH_TOKEN_SECRET as string, (err: any, decoded: any) => {
@@ -186,15 +232,12 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
                 return;
             }
             
-            console.log(decoded);
             // Generate a new access token
             const newAccessToken = jwt.sign(
                 { email: decoded.email },
                 process.env.ACCESS_TOKEN_SECRET as string,
                 { expiresIn: "15m" }
             );
-
-            console.log(newAccessToken)
 
             res.status(200).json({
                 success: true,
